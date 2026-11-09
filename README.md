@@ -35,6 +35,12 @@ d'applications, fichiers, téléphone… tout est dans l'île.
 | `Ctrl+Alt+V` | presse-papiers avec recherche |
 | `Ctrl+Alt+Espace` | lanceur d'applications |
 | Glisser des fichiers sur l'île | ils restent en attente sur l'étagère |
+| Clic sur une icône du dock | affiche l'appli (ou la réduit si elle est déjà au premier plan) |
+| Clic droit sur une icône du dock | fenêtres de l'appli, afficher, réduire, fermer, forcer l'arrêt |
+
+**Dock des applications ouvertes** : à droite de la pilule, un second îlot noir affiche les icônes des applis
+ouvertes (trait d'accent sous l'appli au premier plan, icône estompée si réduite, nom au survol, « +N » au-delà
+de 9 applis). Il s'efface quand l'île s'ouvre. Désactivable par clic droit sur l'île.
 
 **Pilule fermée** : selon le contexte, elle affiche l'heure, le minuteur en cours, une réunion imminente,
 la musique en lecture ou un build en cours. Points vert / orange : caméra / micro utilisés.

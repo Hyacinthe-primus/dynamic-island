@@ -82,7 +82,7 @@ class Launcher(QObject):
                 self.changed.emit()
             except Exception:
                 pass
-            self._run_wake.wait(2 if self.running_visible else 15)
+            self._run_wake.wait(2 if self.running_visible else 3)  # le dock suit les applis ouvertes
             self._run_wake.clear()
 
     def _scan_running(self):

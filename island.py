@@ -56,7 +56,7 @@ ALERT = (360, 64)
 EW = 620
 TAB_H = 46
 PAD = 10                 # marge pour l'ombre
-WIN_W, WIN_H = EW + 80, TAB_H + 380 + 60
+WIN_W, WIN_H = EW + 420, TAB_H + 380 + 60   # large : place pour le dock des applis à droite de la pilule
 TOP_MARGIN = 0
 HOVER_DELAY = 0.07
 LEAVE_DELAY = 0.30
@@ -67,6 +67,12 @@ HOTKEY_LAUNCH = 2
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_NAME = "DynamicIsland"
 user32 = ctypes.windll.user32
+DOCK_MAX = 9          # icônes affichées dans le dock (au-delà : « +N »)
+DOCK_CELL = 30
+MENU_QSS = ("QMenu{background:#000;color:#fff;border:1px solid #333;padding:4px;border-radius:8px}"
+            "QMenu::item{padding:6px 22px 6px 14px;border-radius:4px}"
+            "QMenu::item:selected{background:#262626}QMenu::item:disabled{color:#8a8a8a}"
+            "QMenu::separator{height:1px;background:#2a2a2a;margin:4px 8px}")
 COMPACT_MODES = ("compact", "cmedia", "ctimer", "cmeet", "cbuild")
 
 
@@ -127,6 +133,9 @@ class Island(QWidget):
         self.slide_dir = 0
         self.moving = False
         self._cc = {}
+        self.dock_alpha = 0.0
+        self.dock_hover = None
+        self._dock_sig = None
         self.last_tick = time.time()
         self.t0 = time.time()
 
@@ -292,7 +301,25 @@ class Island(QWidget):
         m = 10 if self.is_open else 6
         inside = self.isVisible() and self.pill_rect().adjusted(-m, -m - PAD, m, m + 4).contains(self.mouse)
 
-        through = not inside and self.drag is None and self.focus_field is None
+        dock_r, dock_items = self.dock_layout()
+        in_dock = dock_r is not None and self.dock_alpha > 0.5 and dock_r.adjusted(-4, -PAD, 4, 4).contains(self.mouse)
+        hov = None
+        if in_dock:
+            for i, (rr, _g) in enumerate(dock_items):
+                if rr.contains(self.mouse):
+                    hov = i
+        dock_changed = hov != self.dock_hover
+        self.dock_hover = hov
+        want = 1.0 if (self.dock_enabled and not self.is_open and self.launcher.running) else 0.0
+        self.dock_alpha += (want - self.dock_alpha) * min(1.0, dt_ * 12)
+        if abs(want - self.dock_alpha) < 0.01:
+            self.dock_alpha = want
+        sig = tuple((g["key"], len(g["windows"])) for g in self.launcher.running[:DOCK_MAX + 1])
+        sig += (user32.GetForegroundWindow(),)
+        if sig != self._dock_sig:
+            self._dock_sig = sig
+            dock_changed = True
+        through = not (inside or in_dock) and self.drag is None and self.focus_field is None
         if through != self.click_through:
             S.set_exstyle(self.hwnd, S.WS_EX_TRANSPARENT, through)
             self.click_through = through
@@ -352,20 +379,23 @@ class Island(QWidget):
 
         fading = now - self.mode_t < 0.35
         scrolling = any(abs(c - t) > 0.3 for c, t in self.scrolls.values())
-        animating = moving or fading or abs(idx - self.tab_x) > 0.002 or scrolling
+        animating = (moving or fading or abs(idx - self.tab_x) > 0.002 or scrolling
+                     or 0.0 < self.dock_alpha < 1.0)
         live = bool(self.media and self.media["playing"]) or self.timers.active() is not None or bool(self.focus_field)
         self.anim.setInterval(7 if animating else (16 if (live or inside) else 40))
         # on ne redessine que si quelque chose change (souris, animation, contenu vivant)
         moved = self.mouse != getattr(self, "_last_mouse", None)
         self._last_mouse = QPointF(self.mouse)
         since = now - getattr(self, "_last_paint", 0)
-        need = (animating or self.drag or (inside and moved) or int(now) != int(now - dt_)
+        need = (animating or self.drag or (inside and moved) or dock_changed or int(now) != int(now - dt_)
                 or (live and since > (0.033 if self.media and self.media["playing"] else 0.25))
                 or (self.is_open and since > 0.5))
         if need:
             self._last_paint = now
             # zone à rafraîchir : île actuelle + précédente (+ ombre), pas toute la fenêtre
             r = self.pill_rect().adjusted(-14, -PAD, 14, 14).toAlignedRect()
+            if dock_r is not None or self.dock_alpha > 0:  # le dock et son étiquette de survol
+                r = r.united(QRectF(self.pill_rect().right(), 0, WIN_W - self.pill_rect().right(), 100).toAlignedRect())
             prev = getattr(self, "_last_dirty", r)
             self._last_dirty = r
             self.update(r.united(prev))
@@ -747,6 +777,20 @@ class Island(QWidget):
 
     def mousePressEvent(self, e):
         pos = QPointF(e.position())
+        dock_r, dock_items = self.dock_layout()
+        if dock_r is not None and self.dock_alpha > 0.5 and dock_r.contains(pos):
+            for rr, g in dock_items:
+                if rr.contains(pos):
+                    if g is None:  # « +N » : toutes les applis dans le lanceur
+                        self.tab = "launcher"
+                        self.tabs["launcher"].set_view("running")
+                        self.pinned = True
+                    elif e.button() == Qt.MouseButton.RightButton:
+                        self.dock_menu(g)
+                    else:
+                        self.dock_activate(g)
+                    self.update()
+            return
         if not self.pill_rect().contains(pos):
             return
         if e.button() == Qt.MouseButton.RightButton:
@@ -1008,6 +1052,7 @@ class Island(QWidget):
         ui = self.ui
         ui.p = p
 
+        self.paint_dock(p)
         r = self.pill_rect()
         radius = R_OPEN if self.h > 60 else min(R_COMPACT, r.height() / 2)
         self.paint_shadow(p, r, radius)
@@ -1125,6 +1170,120 @@ class Island(QWidget):
         self.ui.p, self._reg = main_p, reg
         self._cc[mode] = (key, pm, time.time())
         return pm, tw, th
+
+    # ------------------------------------------------------------ dock des applications ouvertes
+    @property
+    def dock_enabled(self):
+        return settings.get("dock", True)
+
+    def dock_layout(self):
+        """Rectangle du dock (à droite de la pilule) et cases [(rect, groupe | None pour « +N »)]."""
+        apps = self.launcher.running
+        if not apps or self.dock_alpha <= 0.01 and not (self.dock_enabled and not self.is_open):
+            return None, []
+        pr = self.pill_rect()
+        room = int((WIN_W - 16 - (pr.right() + 8) - 8) // DOCK_CELL)
+        shown = apps[:max(1, min(DOCK_MAX, room))]
+        extra = len(apps) - len(shown)
+        if extra and len(shown) > 1:
+            shown = shown[:-1]
+            extra += 1
+        n = len(shown) + (1 if extra else 0)
+        dr = QRectF(pr.right() + 8, PAD, 8 + n * DOCK_CELL, 34)
+        cells = [(QRectF(dr.left() + 4 + i * DOCK_CELL, dr.top() + 2, DOCK_CELL, 30), g)
+                 for i, g in enumerate(shown + ([None] if extra else []))]
+        self._dock_extra = extra
+        return dr, cells
+
+    def paint_dock(self, p):
+        dr, cells = self.dock_layout()
+        if dr is None or self.dock_alpha <= 0.01:
+            return
+        ui = self.ui
+        p.save()
+        p.setOpacity(self.dock_alpha)
+        # glisse légèrement depuis la pilule à l'apparition
+        p.translate(-10 * (1 - self.dock_alpha), 0)
+        self.paint_shadow(p, dr, R_COMPACT)
+        path = QPainterPath()
+        path.addRoundedRect(dr, R_COMPACT, R_COMPACT)
+        p.fillPath(path, T.bg)
+        p.setPen(QPen(T.stroke2, 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRoundedRect(dr.adjusted(0.5, 0.5, -0.5, -0.5), R_COMPACT, R_COMPACT)
+        fg = user32.GetForegroundWindow()
+        label = None
+        for i, (rr, g) in enumerate(cells):
+            c = rr.center()
+            hov = i == self.dock_hover
+            if hov:
+                ui.rect(rr.adjusted(2, 1, -2, -1), T.hover, 6)
+            if g is None:
+                ui.text(rr, f"+{self._dock_extra}", font(8, W.DemiBold), T.text2, CENTER)
+                if hov:
+                    label = (c, "Toutes les applis ouvertes")
+                continue
+            size = 22 if hov else 20
+            minimized = all(w["min"] for w in g["windows"])
+            if minimized:
+                p.setOpacity(self.dock_alpha * 0.5)
+            ui.file_icon(QRectF(c.x() - size / 2, c.y() - size / 2 - 1, size, size), g["exe"], chr(0xE71D))
+            p.setOpacity(self.dock_alpha)
+            active = any(w["hwnd"] == fg for w in g["windows"])
+            if active:  # indicateur d'appli au premier plan, comme la barre des tâches
+                ui.rect(QRectF(c.x() - 6, rr.bottom() - 2, 12, 2.5), T.accent, 1.25)
+            elif len(g["windows"]) > 1:
+                ui.rect(QRectF(c.x() - 2, rr.bottom() - 2, 4, 2.5), T.text3, 1.25)
+            if hov:
+                n = len(g["windows"])
+                label = (c, g["name"] + (f" · {n} fenêtres" if n > 1 else ""))
+        if label:
+            c, txt = label
+            f = font(8, W.Medium)
+            w = ui.tw(txt, f) + 18
+            lr = QRectF(c.x() - w / 2, dr.bottom() + 6, w, 22)
+            if lr.right() > WIN_W - 4:
+                lr.moveRight(WIN_W - 4)
+            ui.rect(lr, T.bg, 6, T.stroke2)
+            ui.text(lr, txt, f, T.text, CENTER)
+        p.restore()
+
+    def dock_activate(self, g):
+        """Clic : affiche l'appli ; si elle est déjà au premier plan, la réduit (comme la barre des tâches)."""
+        fg = user32.GetForegroundWindow()
+        hwnds = [w["hwnd"] for w in g["windows"]]
+        if fg in hwnds and not user32.IsIconic(fg):
+            self.launcher.minimize_window(fg)
+        else:
+            S.activate_window(hwnds[0])
+        QTimer.singleShot(300, self.launcher.refresh_running)
+
+    def dock_menu(self, g):
+        """Clic droit : fenêtres de l'appli et actions."""
+        L = self.launcher
+        m = QMenu()
+        m.setStyleSheet(MENU_QSS)
+        head = m.addAction(g["name"] + f"  ·  {g['mem'] / 2 ** 20:.0f} Mo")
+        head.setEnabled(False)
+        m.addSeparator()
+        if len(g["windows"]) > 1:
+            for w in g["windows"]:
+                t = w["title"] if len(w["title"]) < 60 else w["title"][:57] + "…"
+                a = m.addAction(("◦ " if w["min"] else "• ") + t)
+                a.triggered.connect(lambda _=False, h=w["hwnd"]: S.activate_window(h))
+            m.addSeparator()
+        m.addAction("Afficher").triggered.connect(lambda: S.activate_window(g["windows"][0]["hwnd"]))
+        m.addAction("Réduire").triggered.connect(lambda: [L.minimize_window(w["hwnd"]) for w in g["windows"]])
+        m.addAction("Fermer").triggered.connect(lambda: L.close_app(g))
+        m.addSeparator()
+
+        def force():
+            if QMessageBox.question(None, "Dynamic Island", f"Forcer l'arrêt de {g['name']} ?\n"
+                                    "Les données non enregistrées seront perdues.") == QMessageBox.StandardButton.Yes:
+                L.kill_app(g)
+        m.addAction("Forcer l'arrêt…").triggered.connect(force)
+        m.exec(QCursor.pos())
+        L.refresh_running()
 
     _shadow_cache = {}
 
@@ -1378,6 +1537,10 @@ def main():
         set_autostart(True)  # met à jour la commande (passage par le gardien)
     auto.setChecked(autostart_enabled())
     auto.toggled.connect(set_autostart)
+    dock_a = QAction("Applis ouvertes à côté de l'île", menu, checkable=True)
+    dock_a.setChecked(island.dock_enabled)
+    dock_a.toggled.connect(lambda v: settings.set("dock", v))
+    menu.setStyleSheet(MENU_QSS)
     tb = QAction("Masquer la barre des tâches", menu, checkable=True)
     tb.setChecked(island.taskbar_hidden)
     tb.toggled.connect(island.set_taskbar_hidden)
@@ -1434,6 +1597,7 @@ def main():
     menu.addAction(pin)
     menu.addAction(auto)
     menu.addAction(tb)
+    menu.addAction(dock_a)
     menu.addSeparator()
     menu.addAction(sync_a)
     menu.addAction(stop_sync)
