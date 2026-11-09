@@ -1,6 +1,7 @@
 """Onglet Lanceur : recherche d'applications, favoris, groupes, applis récentes,
 raccourcis personnalisés, PowerShell, scripts Python."""
 import re
+import time
 import webbrowser
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -9,6 +10,7 @@ from theme import G, T, W, font
 from ui import CENTER, LEFT, RIGHT
 
 CONTENT_H = 372
+STOP, MINI, APP, APPS = chr(0xE71A), chr(0xE921), chr(0xE71D), chr(0xE7C4)
 KIND = {"app": "Application", "uwp": "Application Store", "url": "Site web", "folder": "Dossier", "file": "Fichier",
         "ps": "PowerShell", "py": "Script Python"}
 KIND_G = {"url": G["globe"], "folder": G["folder"], "file": G["doc"], "ps": G["terminal"], "py": G["code"],
@@ -21,6 +23,8 @@ class LauncherTab:
     def __init__(self, isl):
         self.isl = isl
         self.sel = 0
+        self.view = "home"
+        self.confirm_kill = None
 
     def height(self):
         return CONTENT_H
@@ -32,9 +36,29 @@ class LauncherTab:
             return []
         return self.isl.launcher.search(q, 10)
 
+    def set_view(self, v):
+        self.view = v
+        self.sel = 0
+        self.isl.launcher.running_visible = v == "running"
+        if v == "running":
+            self.isl.launcher.refresh_running()
+
+    def running_filtered(self):
+        q = self.isl.fields.get("launch_search", "").strip().lower()
+        apps = self.isl.launcher.running
+        if not q:
+            return apps
+        return [g for g in apps if q in g["name"].lower() or any(q in w["title"].lower() for w in g["windows"])]
+
     def _submit(self, text):
         L = self.isl.launcher
         t = text.strip()
+        if self.view == "running":
+            apps = self.running_filtered()
+            if apps:
+                self.show(apps[min(self.sel, len(apps) - 1)]["windows"][0]["hwnd"])
+                return True
+            return False
         low = t.lower()
         if t.startswith("+"):
             r = L.parse_add(t)
@@ -58,7 +82,7 @@ class LauncherTab:
         return False
 
     def key_event(self, e):
-        res = self.results()
+        res = self.running_filtered() if self.view == "running" else self.results()
         if e.key() == Qt.Key.Key_Down and res:
             self.sel = min(len(res) - 1, self.sel + 1)
             return True
@@ -77,15 +101,107 @@ class LauncherTab:
     def paint(self, ui, cr):
         isl = self.isl
         x0, x1 = cr.left() + 16, cr.right() - 16
-        ui.field(QRectF(x0, cr.top(), x1 - x0, 32), "launch_search",
-                 "Rechercher une app (Ctrl+Alt+Espace) · + Nom = cible · > commande · py: script.py · site.com",
+        ph = ("Filtrer les applications ouvertes · Entrée pour afficher" if self.view == "running" else
+              "Rechercher une app (Ctrl+Alt+Espace) · + Nom = cible · > commande · py: script.py · site.com")
+        ui.field(QRectF(x0, cr.top(), x1 - x0, 32), "launch_search", ph,
                  on_submit=self._submit, glyph=G["search"], on_change=lambda *_: setattr(self, "sel", 0))
-        body = QRectF(cr.left() + 8, cr.top() + 40, cr.width() - 16, cr.height() - 46)
+        n = len(isl.launcher.running)
+        ui.segmented(QRectF(x0 - 6, cr.top() + 38, 0, 28),
+                     [("home", "Lancer"), ("running", f"En cours ({n})" if n else "En cours")], self.view, self.set_view)
+        body = QRectF(cr.left() + 8, cr.top() + 72, cr.width() - 16, cr.height() - 78)
         q = isl.fields.get("launch_search", "").strip()
-        if q:
+        if self.view == "running":
+            self._running(ui, body)
+        elif q:
             self._search(ui, body, q)
         else:
             ui.scroll("launcher", body, lambda y: self._home(ui, body, y))
+
+    # ------------------------------------------------------------------ applications en cours
+    def show(self, hwnd):
+        self.isl.close_island(restore_focus=False)
+        self.isl.launcher.show_window(hwnd)
+
+    def _kill(self, g):
+        c = self.confirm_kill
+        if c and c[0] == g["key"] and time.time() - c[1] < 3:
+            self.confirm_kill = None
+            self.isl.launcher.kill_app(g)
+            self.isl.show_alert("launch", f"{g['name']} arrêté", "Fermeture forcée", T.critical, STOP)
+        else:
+            self.confirm_kill = (g["key"], time.time())
+
+    def _running(self, ui, body):
+        L = self.isl.launcher
+        apps = self.running_filtered()
+        if not apps:
+            ui.empty(body, APPS, "Aucune application ouverte" if not L.running else "Aucun résultat",
+                     "Les fenêtres ouvertes apparaissent ici")
+            return
+
+        def draw(y0):
+            x0, x1 = body.left() + 4, body.right() - 12
+            y = y0
+            for i, g in enumerate(apps):
+                r = QRectF(x0, y, x1 - x0, 46)
+                nw = len(g["windows"])
+                if ui.visible(r):
+                    hov = ui.row_hover(r)
+                    sel = i == self.sel and self.isl.focus_field == "launch_search"
+                    ui.rect(r, T.layer2 if (hov or sel) else T.layer, 6, T.stroke)
+                    if sel:
+                        ui.rect(QRectF(r.left(), r.top() + 13, 3, 20), T.accent, 1.5)
+                    ui.file_icon(QRectF(r.left() + 12, r.top() + 10, 26, 26), g["exe"], APP)
+                    confirm = bool(self.confirm_kill and self.confirm_kill[0] == g["key"]
+                                   and time.time() - self.confirm_kill[1] < 3)
+                    right = 136 if (hov or confirm) else 70
+                    ui.text(QRectF(r.left() + 48, r.top() + 5, r.width() - 56 - right, 18), g["name"], font(9.5, W.DemiBold))
+                    sub = g["windows"][0]["title"] if nw == 1 else f"{nw} fenêtres"
+                    ui.text(QRectF(r.left() + 48, r.top() + 24, r.width() - 56 - right, 16), sub, font(7.5), T.text3)
+                    ui.row_hit(QRectF(r.left(), r.top(), r.width() - right, r.height()),
+                               lambda h=g["windows"][0]["hwnd"]: self.show(h))
+                    if confirm:
+                        ui.button(QRectF(r.right() - 132, r.top() + 9, 122, 28), "Forcer l'arrêt ?",
+                                  lambda g=g: self._kill(g), STOP, accent=True)
+                    elif hov:
+                        bx = r.right() - 18
+                        for g_, fn, col in ((STOP, lambda g=g: self._kill(g), T.critical),
+                                            (G["close"], lambda g=g: L.close_app(g), None),
+                                            (MINI, lambda g=g: [L.minimize_window(w["hwnd"]) for w in g["windows"]], None),
+                                            (G["open"], lambda h=g["windows"][0]["hwnd"]: self.show(h), None)):
+                            ui.icon_button(QPointF(bx, r.center().y()), g_, fn, 11, col, 26)
+                            bx -= 30
+                    else:
+                        ui.text(QRectF(r.right() - 76, r.top(), 66, 46), f"{g['mem'] / 2 ** 20:.0f} Mo", font(7.5),
+                                T.text3, RIGHT)
+                y += 50
+                if nw > 1:  # chaque fenêtre de l'appli (fenêtres de navigateur, documents…)
+                    for wnd in g["windows"]:
+                        wr = QRectF(x0 + 30, y, x1 - x0 - 30, 28)
+                        if ui.visible(wr):
+                            hov = ui.row_hover(wr)
+                            if hov:
+                                ui.rect(wr, T.hover, 4)
+                            ui.rect(QRectF(wr.left() - 12, wr.top() + 13, 6, 1.5), T.stroke2, 0)
+                            ui.text(QRectF(wr.left() + 4, wr.top(), wr.width() - (100 if hov else 70), 28), wnd["title"],
+                                    font(8), T.text3 if wnd["min"] else T.text2)
+                            if wnd["min"] and not hov:
+                                ui.badge(wr.right() - 64, wr.top() + 6, "réduite", T.text3)
+                            ui.row_hit(QRectF(wr.left(), wr.top(), wr.width() - (90 if hov else 0), wr.height()),
+                                       lambda h=wnd["hwnd"]: self.show(h))
+                            if hov:
+                                bx = wr.right() - 14
+                                for g_, fn in ((G["close"], lambda h=wnd["hwnd"]: L.close_window(h)),
+                                               (MINI, lambda h=wnd["hwnd"]: L.minimize_window(h)),
+                                               (G["open"], lambda h=wnd["hwnd"]: self.show(h))):
+                                    ui.icon_button(QPointF(bx, wr.center().y()), g_, fn, 10, None, 22)
+                                    bx -= 26
+                        y += 30
+                    y += 4
+            ui.text(QRectF(x0, y + 2, x1 - x0, 16), "Croix : fermeture normale (l'appli peut proposer d'enregistrer) · "
+                                                    "carré rouge : arrêt forcé (2 clics)", font(7), T.text3)
+            return y - y0 + 22
+        ui.scroll("running", body, draw)
 
     def _icon(self, ui, rect, it):
         if it.get("kind") in ("app", "folder", "file") or (it.get("kind") == "py" and not it["target"].lower().startswith("py:")):

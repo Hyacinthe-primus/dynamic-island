@@ -63,7 +63,157 @@ class Launcher(QObject):
         self.apps = []        # [{name, target, kind, args}]
         self.recent_apps = []
         self.last_output = None
+        self.running = []     # applications ouvertes : [{key, name, exe, pids, windows, mem}]
+        self.running_visible = False
+        self.own_pid = os.getpid()
+        self._desc = {}
+        self._run_wake = threading.Event()
         threading.Thread(target=self._scan, daemon=True).start()
+        threading.Thread(target=self._running_loop, daemon=True).start()
+
+    # ---------------------------------------------------------------- applications en cours
+    def refresh_running(self):
+        self._run_wake.set()
+
+    def _running_loop(self):
+        while True:
+            try:
+                self.running = self._scan_running()
+                self.changed.emit()
+            except Exception:
+                pass
+            self._run_wake.wait(2 if self.running_visible else 15)
+            self._run_wake.clear()
+
+    def _scan_running(self):
+        """Fenêtres d'applications réelles (visibles, non masquées, non outils), regroupées par programme."""
+        import ctypes
+        from ctypes import wintypes
+        import psutil
+        user32 = ctypes.windll.user32
+        dwm = ctypes.windll.dwmapi
+        wins = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def cb(hwnd, _):
+            if not user32.IsWindowVisible(hwnd) or user32.GetWindow(hwnd, 4):   # GW_OWNER
+                return True
+            ex = user32.GetWindowLongW(hwnd, -20)
+            if ex & 0x80 and not ex & 0x40000:                                 # outil sans WS_EX_APPWINDOW
+                return True
+            cloaked = ctypes.c_int(0)
+            dwm.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
+            if cloaked.value:                                                  # fenêtres UWP cachées
+                return True
+            n = user32.GetWindowTextLengthW(hwnd)
+            if not n:
+                return True
+            buf = ctypes.create_unicode_buffer(n + 1)
+            user32.GetWindowTextW(hwnd, buf, n + 1)
+            cls = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(hwnd, cls, 128)
+            if cls.value in ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"):
+                return True
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            wins.append((hwnd, buf.value, pid.value))
+            return True
+
+        user32.EnumWindows(cb, 0)
+        groups = {}
+        for hwnd, title, pid in wins:
+            if pid == self.own_pid:
+                continue
+            try:
+                proc = psutil.Process(pid)
+                exe = proc.exe()
+                name = proc.name()
+            except Exception:
+                continue
+            if name.lower() == "applicationframehost.exe":            # appli du Store : vrai processus enfant
+                real = self._uwp_child(hwnd, pid)
+                if real:
+                    try:
+                        proc = psutil.Process(real)
+                        exe, name, pid = proc.exe(), proc.name(), real
+                    except Exception:
+                        pass
+            if os.path.normcase(exe).endswith(("pythonw.exe",)) and "island" in " ".join(proc.cmdline()).lower():
+                continue
+            key = os.path.normcase(exe)
+            g = groups.setdefault(key, {"key": key, "exe": exe, "name": self._app_name(exe, name, title),
+                                        "pids": set(), "windows": [], "mem": 0})
+            g["pids"].add(pid)
+            g["windows"].append({"hwnd": hwnd, "title": title, "min": bool(user32.IsIconic(hwnd))})
+        for g in groups.values():
+            for p in g["pids"]:
+                try:
+                    g["mem"] += psutil.Process(p).memory_info().rss
+                except Exception:
+                    pass
+            g["pids"] = sorted(g["pids"])
+        # ordre : plus de fenêtres d'abord ? non → ordre Z (la plus récemment utilisée en premier)
+        order = {os.path.normcase(e): i for i, e in enumerate(dict.fromkeys(
+            g["exe"] for hw, _, _ in wins for g in groups.values() if any(w["hwnd"] == hw for w in g["windows"])))}
+        return sorted(groups.values(), key=lambda g: order.get(g["key"], 999))
+
+    @staticmethod
+    def _uwp_child(hwnd, frame_pid):
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        found = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def cb(ch, _):
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(ch, ctypes.byref(pid))
+            if pid.value != frame_pid:
+                found.append(pid.value)
+                return False
+            return True
+
+        user32.EnumChildWindows(hwnd, cb, 0)
+        return found[0] if found else None
+
+    def _app_name(self, exe, proc_name, title):
+        if exe not in self._desc:
+            self._desc[exe] = self._describe(exe) or os.path.splitext(proc_name)[0]
+        d = self._desc[exe]
+        return {"Explorateur Windows": "Explorateur", "Windows Explorer": "Explorateur"}.get(d, d)
+
+    # --- actions sur les applications en cours
+    def show_window(self, hwnd):
+        import system as S
+        return S.activate_window(hwnd)
+
+    @staticmethod
+    def minimize_window(hwnd):
+        import ctypes
+        ctypes.windll.user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+
+    def close_window(self, hwnd):
+        """Fermeture normale (comme la croix) : l'appli peut demander d'enregistrer."""
+        import ctypes
+        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+        threading.Timer(0.6, self.refresh_running).start()
+
+    def close_app(self, g):
+        for w in g["windows"]:
+            self.close_window(w["hwnd"])
+
+    def kill_app(self, g):
+        """Arrêt forcé de tous les processus de l'appli (perte des données non enregistrées)."""
+        import psutil
+        for p in g["pids"]:
+            try:
+                proc = psutil.Process(p)
+                for ch in proc.children(recursive=True):
+                    ch.kill()
+                proc.kill()
+            except Exception:
+                pass
+        threading.Timer(0.6, self.refresh_running).start()
 
     # ---------------------------------------------------------------- inventaire
     def _scan(self):

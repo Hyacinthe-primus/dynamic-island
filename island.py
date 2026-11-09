@@ -379,6 +379,8 @@ class Island(QWidget):
 
     def refresh_visible(self):
         self.dev.visible = self.is_open and self.tab == "dev"
+        self.launcher.running_visible = (self.is_open and self.tab == "launcher"
+                                         and self.tabs["launcher"].view == "running")
         vis = self.is_open and self.tab == "wallet"
         if vis and not self.wallet.visible:
             self.wallet.refresh()
