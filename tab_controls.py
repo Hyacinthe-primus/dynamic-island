@@ -8,6 +8,7 @@ from theme import G, T, W, font
 from ui import CENTER, LEFT, RIGHT
 
 APP_ROW = 30
+HOTSPOT, LAN, EYE, EYE_OFF = chr(0xE88A), chr(0xE968), chr(0xE7B3), chr(0xED1A)
 
 
 class ControlsTab:
@@ -22,6 +23,9 @@ class ControlsTab:
         self.panel = None          # "wifi" | "bt" : panneau détaillé
         self.wifi_expand = None    # réseau dont on saisit le mot de passe
         self.forget = None
+        self.hs_edit = False       # édition nom / mot de passe du point d'accès
+        self.hs_show_pw = False
+        self.hs_block = None       # confirmation de blocage
 
     def height(self):
         if self.panel:
@@ -49,11 +53,18 @@ class ControlsTab:
         self.isl.scrolls.pop("net_panel", None)
         if which == "wifi":
             self.isl.net.scan_wifi()
-        else:
+        elif which == "bt":
             self.isl.net.refresh_bt()
+        elif which == "hotspot":
+            self.isl.hotspot.visible = True
+            self.isl.hotspot.refresh()
+        elif which == "lan":
+            self.isl.hotspot.scan_lan()
 
     def close_panel(self):
         self.panel = None
+        self.isl.hotspot.visible = False
+        self.hs_edit = False
         if self.isl.focus_field == "wifi_pw":
             self.isl.unfocus(restore=False)
 
@@ -93,6 +104,10 @@ class ControlsTab:
             ui.rect(QRectF(c.x() - 8 + i * 4.5, c.y() + 7 - h, 3, h), col if i < n else T.tint(col, 60), 1)
 
     def _panel(self, ui, cr):
+        if self.panel == "hotspot":
+            return self._hotspot_panel(ui, cr)
+        if self.panel == "lan":
+            return self._lan_panel(ui, cr)
         isl = self.isl
         net = isl.net
         x0, x1 = cr.left() + 16, cr.right() - 16
@@ -222,6 +237,189 @@ class ControlsTab:
             y += 52
         return y - y0
 
+    # ------------------------------------------------------------------ point d'accès
+    def _hs_header(self, ui, cr, title, right=None):
+        x0, x1 = cr.left() + 16, cr.right() - 16
+        y = cr.top() + 4
+        ui.icon_button(QPointF(x0 + 12, y + 14), G["left"], self.close_panel, 12, None, 28)
+        ui.text(QRectF(x0 + 32, y, 330, 28), title, font(11, W.DemiBold, True))
+        if right:
+            right(x1, y)
+        return y + 36
+
+    def _hs_save(self):
+        f = self.isl.fields
+        name, pw = f.get("hs_name", "").strip(), f.get("hs_pw", "").strip()
+        if pw and len(pw) < 8:
+            self.isl.show_alert("hotspot", "Mot de passe trop court", "8 caractères minimum", T.critical, HOTSPOT)
+            return False
+        self.isl.hotspot.configure(ssid=name or None, password=pw or None)
+        self.hs_edit = False
+        self.isl.unfocus(restore=False)
+        return True
+
+    def _hs_block(self, c):
+        if self.hs_block == c["mac"]:
+            self.hs_block = None
+            self.isl.hotspot.block(c)
+        else:
+            self.hs_block = c["mac"]
+
+    def _hotspot_panel(self, ui, cr):
+        isl = self.isl
+        hs = isl.hotspot
+        x0, x1 = cr.left() + 16, cr.right() - 16
+
+        def right(xr, yy):
+            if hs.busy or hs.state == "transition":
+                ui.text(QRectF(xr - 190, yy, 140, 28), "Patientez…", font(8), T.text3, RIGHT)
+            ui.toggle(QPointF(xr - 24, yy + 14), hs.state == "on", hs.toggle)
+        y = self._hs_header(ui, cr, "Point d'accès mobile", right)
+        on = hs.state == "on"
+        # carte réseau : nom, mot de passe, bande + QR de connexion
+        card = QRectF(x0, y, x1 - x0, 124)
+        ui.card(card)
+        qr_w = 108 if (on and hs.password) else 0
+        if qr_w:
+            from hotspot import wifi_qr_text
+            ui.qr(QRectF(card.right() - qr_w - 8, card.top() + 8, qr_w, qr_w), wifi_qr_text(hs.ssid, hs.password))
+        cx = card.left() + 14
+        cw = card.width() - 28 - qr_w - (10 if qr_w else 0)
+        if self.hs_edit:
+            ui.field(QRectF(cx, card.top() + 10, cw, 30), "hs_name", hs.ssid or "Nom du réseau", glyph=HOTSPOT,
+                     on_submit=lambda t: self._hs_save())
+            ui.field(QRectF(cx, card.top() + 46, cw, 30), "hs_pw", "Nouveau mot de passe (8 caractères min.)",
+                     glyph=G["lock"], secret=not self.hs_show_pw, on_submit=lambda t: self._hs_save())
+            ui.button(QRectF(cx, card.top() + 86, 110, 28), "Enregistrer", self._hs_save, G["check"], accent=True)
+            ui.button(QRectF(cx + 118, card.top() + 86, 90, 28), "Annuler", lambda: setattr(self, "hs_edit", False))
+            from hotspot import random_password
+            ui.button(QRectF(cx + 216, card.top() + 86, 150, 28), "Générer un mot de passe",
+                      lambda: (isl.fields.__setitem__("hs_pw", random_password()), setattr(self, "hs_show_pw", True)),
+                      G["refresh"])
+        else:
+            ui.text(QRectF(cx, card.top() + 8, cw, 18), "Nom du réseau", font(7.5), T.text3)
+            ui.text(QRectF(cx, card.top() + 24, cw, 22), hs.ssid or "—", font(11, W.DemiBold))
+            ui.text(QRectF(cx, card.top() + 50, cw, 18), "Mot de passe", font(7.5), T.text3)
+            pw = hs.password if self.hs_show_pw else "•" * min(12, len(hs.password or ""))
+            ui.text(QRectF(cx, card.top() + 66, cw - 40, 22), pw or "—", font(10, W.Medium))
+            ui.icon_button(QPointF(cx + min(cw - 20, ui.tw(pw, font(10, W.Medium)) + 20), card.top() + 77),
+                           EYE_OFF if self.hs_show_pw else EYE, lambda: setattr(self, "hs_show_pw", not self.hs_show_pw),
+                           11, None, 24)
+            from hotspot import BANDS
+            bx = cx
+            for b, label in BANDS.items():
+                w = ui.chip_w(label)
+                ui.chip(QRectF(bx, card.top() + 94, w, 22), label, hs.band == b,
+                        lambda b=b: hs.configure(band=b))
+                bx += w + 4
+            ui.button(QRectF(bx + 8, card.top() + 93, 92, 24), "Modifier", self._hs_start_edit, G["edit"])
+        y += 132
+        # état / erreur
+        if hs.error and not on:
+            ui.wrap(QRectF(x0, y, x1 - x0, 34), hs.error, font(8), T.critical, 2)
+            y += 36
+        elif not on:
+            ui.text(QRectF(x0, y, x1 - x0, 18), "Point d'accès désactivé — activez-le avec l'interrupteur en haut à droite",
+                    font(8), T.text3)
+            y += 22
+        # appareils connectés + bloqués
+        body = QRectF(cr.left() + 8, y, cr.width() - 16, cr.bottom() - y - 40)
+        ui.scroll("hs_list", body, lambda yy: self._hs_devices(ui, body, yy))
+        fy = cr.bottom() - 34
+        ui.button(QRectF(x0, fy, 210, 28), "Paramètres du point d'accès",
+                  lambda: isl.open_url("ms-settings:network-mobilehotspot"), G["settings"])
+        ui.text(QRectF(x0 + 220, fy, x1 - x0 - 220, 28), "Bloquer = nouveau mot de passe + redémarrage",
+                font(7.5), T.text3)
+
+    def _hs_start_edit(self):
+        self.hs_edit = True
+        self.isl.fields["hs_name"] = self.isl.hotspot.ssid
+        self.isl.fields["hs_pw"] = ""
+        self.isl.focus("hs_name")
+
+    def _hs_devices(self, ui, body, y0):
+        hs = self.isl.hotspot
+        x0, x1 = body.left() + 8, body.right() - 14
+        y = y0
+        ui.text(QRectF(x0, y, 300, 18), f"Appareils connectés ({len(hs.clients)}/{hs.max_clients})", font(8.5, W.DemiBold))
+        y += 22
+        if not hs.clients:
+            ui.text(QRectF(x0, y, x1 - x0, 18), "Aucun appareil" if hs.state == "on" else "—", font(8), T.text3)
+            y += 22
+        for c in hs.clients:
+            r = QRectF(x0, y, x1 - x0, 42)
+            if ui.visible(r):
+                ui.card(r)
+                ui.glyph(QPointF(r.left() + 20, r.center().y()), G["phone"], 13, T.critical if c["blocked"] else T.accent)
+                ui.text(QRectF(r.left() + 40, r.top() + 4, r.width() - 190, 18), c["name"], font(9, W.DemiBold))
+                ui.text(QRectF(r.left() + 40, r.top() + 22, r.width() - 190, 16),
+                        f"{c['ip'] or 'IP en attente'} · {c['mac']}", font(7.5), T.text3)
+                confirm = self.hs_block == c["mac"]
+                ui.button(QRectF(r.right() - 120, r.top() + 7, 110, 28), "Confirmer ?" if confirm else "Bloquer",
+                          lambda c=c: self._hs_block(c), G["close"] if not confirm else None, danger=not confirm,
+                          accent=confirm)
+            y += 46
+        bl = hs.blocked
+        if bl:
+            y += 6
+            ui.text(QRectF(x0, y, 300, 18), f"Appareils bloqués ({len(bl)})", font(8.5, W.DemiBold))
+            y += 22
+            for b in bl:
+                ui.glyph(QPointF(x0 + 10, y + 11), G["close"], 10, T.critical)
+                ui.text(QRectF(x0 + 24, y, x1 - x0 - 140, 22), f"{b['name']} · {b['mac']}", font(8), T.text2)
+                ui.link(QRectF(x1 - 80, y, 80, 22), "Débloquer", lambda m=b["mac"]: hs.unblock(m), font(8, W.Medium))
+                y += 24
+        return y - y0 + 4
+
+    # ------------------------------------------------------------------ appareils du réseau local
+    def _lan_panel(self, ui, cr):
+        isl = self.isl
+        hs = isl.hotspot
+        x0, x1 = cr.left() + 16, cr.right() - 16
+
+        def right(xr, yy):
+            if hs.lan_scanning:
+                ui.text(QRectF(xr - 150, yy, 140, 28), "Analyse du réseau…", font(8), T.text3, RIGHT)
+            else:
+                ui.icon_button(QPointF(xr - 14, yy + 14), G["refresh"], hs.scan_lan, 11, None, 26)
+        ssid = isl.net.wifi_cur.get("ssid")
+        y = self._hs_header(ui, cr, "Appareils sur le réseau" + (f" · {ssid}" if ssid else ""), right)
+        info = hs.lan_info
+        if info.get("net"):
+            ui.text(QRectF(x0, y - 6, x1 - x0, 18), f"Réseau {info['net']} · cet ordinateur : {info.get('ip')}",
+                    font(7.5), T.text3)
+            y += 16
+        body = QRectF(cr.left() + 8, y, cr.width() - 16, cr.bottom() - y - 40)
+
+        def draw(y0):
+            yy = y0
+            if not hs.lan:
+                ui.text(QRectF(x0, yy + 10, x1 - x0, 20), "Analyse en cours…" if hs.lan_scanning else "Aucun appareil trouvé",
+                        font(9), T.text3, CENTER)
+                return 40
+            icons = {"router": LAN, "self": chr(0xE7F8), "device": G["phone"]}
+            for d in hs.lan:
+                r = QRectF(body.left() + 8, yy, body.width() - 22, 42)
+                if ui.visible(r):
+                    ui.card(r)
+                    col = T.accent if d["kind"] != "device" else T.text2
+                    ui.glyph(QPointF(r.left() + 20, r.center().y()), icons[d["kind"]], 13, col)
+                    label = {"router": "Routeur / box", "self": "Cet ordinateur"}.get(d["kind"])
+                    name = d["name"] or "Appareil inconnu"
+                    ui.text(QRectF(r.left() + 40, r.top() + 4, r.width() - 160, 18),
+                            name + (f" · {label}" if label else ""), font(9, W.DemiBold))
+                    ui.text(QRectF(r.left() + 40, r.top() + 22, r.width() - 160, 16), f"{d['ip']} · {d['mac']}",
+                            font(7.5), T.text3)
+                    if d["kind"] == "router":
+                        ui.button(QRectF(r.right() - 130, r.top() + 7, 120, 28), "Administrer",
+                                  lambda ip=d["ip"]: isl.open_url(f"http://{ip}"), G["open"])
+                yy += 46
+            return yy - y0
+        ui.scroll("lan_list", body, draw)
+        ui.wrap(QRectF(x0, cr.bottom() - 36, x1 - x0, 32),
+                "Pour bloquer un appareil sur ce réseau, utilisez l'administration du routeur (bouton « Administrer »). "
+                "Sur votre propre point d'accès, le blocage se fait depuis la tuile Point d'accès.", font(7.5), T.text3, 2)
+
     # ------------------------------------------------------------------ actions
     def toggle_picker(self):
         self.picker = not self.picker
@@ -255,8 +453,8 @@ class ControlsTab:
             return self._panel(ui, cr)
         x0, x1 = cr.left() + 16, cr.right() - 16
         y = cr.top() + 4
-        cols = 5
-        gap = 8
+        cols = 6
+        gap = 7
         tw = (x1 - x0 - gap * (cols - 1)) / cols
         mic_on = isl.audio.mic_available() and not isl.audio.mic_muted()
         conf = self.confirm and self.confirm > time.time()
@@ -277,7 +475,11 @@ class ControlsTab:
             (G["headphone"] if head else G["speaker"], "Sortie audio", self.picker, self.toggle_picker, False, True, None),
             (G["lock"], "Verrouiller", False, self.do_lock, False, True, None),
             (G["power"], "Confirmer ?" if conf else "Veille", bool(conf), self.do_sleep, False, True, T.critical),
+            (HOTSPOT, "Point d'accès", isl.hotspot.state == "on", isl.hotspot.toggle, False,
+             isl.hotspot.state is not None or isl.hotspot.error is not None, None, lambda: self.open_panel("hotspot")),
+            (LAN, "Appareils réseau", False, lambda: self.open_panel("lan"), False, True, None),
         ]
+        tiles = tiles[:2] + [tiles[10], tiles[11]] + tiles[2:10]
         for i, t in enumerate(tiles):
             g, label, on, fn, slash, enabled, color = t[:7]
             r = QRectF(x0 + (i % cols) * (tw + gap), y + (i // cols) * 66, tw, 62)

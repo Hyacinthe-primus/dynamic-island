@@ -20,3 +20,6 @@ winrt-Windows.UI.Notifications.Management
 winrt-Windows.ApplicationModel
 winrt-Windows.Devices.Bluetooth
 winrt-Windows.Devices.Enumeration
+winrt-Windows.Networking
+winrt-Windows.Networking.Connectivity
+winrt-Windows.Networking.NetworkOperators

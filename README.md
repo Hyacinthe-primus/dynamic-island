@@ -7,6 +7,21 @@ d'applications, fichiers, téléphone… tout est dans l'île.
 
 Écrite en Python avec **PySide6** (Qt), sans dépendance à un service en ligne obligatoire.
 
+<p align="center">
+  <img src="docs/screenshots/pilule.png" alt="Île fermée : musique en cours" width="420"><br>
+  <em>Fermée, l'île affiche l'essentiel (ici, la musique en cours)</em>
+</p>
+
+## Aperçu
+
+| Accueil | Contrôles |
+|---|---|
+| ![Accueil : heure, météo, musique, tâches du jour](docs/screenshots/accueil.png) | ![Contrôles : Wi-Fi, Bluetooth, volumes, luminosité](docs/screenshots/controles.png) |
+| **Lanceur** | **Minuteurs** |
+| ![Lanceur : favoris et applis récentes](docs/screenshots/lanceur.png) | ![Pomodoro et mode concentration](docs/screenshots/minuteurs.png) |
+| **Téléphone** | |
+| ![Téléphone : QR code de connexion (flouté)](docs/screenshots/telephone.png) | |
+
 ---
 
 ## Fonctionnement général
@@ -50,15 +65,26 @@ Démarrer. Pour la retrouver : clic droit sur l'île › décocher *Masquer la b
 | **Infos** | Widgets personnalisables : météo et prévisions, heure mondiale, statistiques, citation du jour, actualités RSS, bourse, photo favorite, calendrier |
 | **Finances** | Portefeuille **Binance** en lecture seule (Spot, Financement, Earn), en $ / FCFA / €, variation 24 h, historique, mode masqué |
 | **Dev** | IDE et projet ouverts (VS Code, IntelliJ, PyCharm, Visual Studio…), branche et statut Git, commits, GitHub (PR, issues, CI, déploiements, notifications), Jenkins, build local et erreurs, logs, serveurs et ports locaux, services, projets favoris |
-| **Contrôles** | Réglages rapides façon Windows 11 : **Wi-Fi** et **Bluetooth** (le chevron `›` ouvre un panneau pour choisir le réseau ou l'appareil), mode avion, éclairage nocturne, Ne pas déranger, micro, caméra, sortie audio, verrouiller, veille, volume général et par appli, luminosité |
+| **Contrôles** | Réglages rapides façon Windows 11 : **Wi-Fi**, **Bluetooth** et **point d'accès mobile** (le chevron `›` ouvre un panneau détaillé), appareils du réseau, mode avion, éclairage nocturne, Ne pas déranger, micro, caméra, sortie audio, verrouiller, veille, volume général et par appli, luminosité |
 | **Presse-papiers** | Historique des textes, liens, images et fichiers, recherche, catégories, épingler, coller directement dans l'appli active |
 
-### Panneaux Wi-Fi et Bluetooth
+### Panneaux Wi-Fi, Bluetooth, point d'accès et réseau
 - **Wi-Fi** : réseaux visibles avec force du signal et sécurité, réseau connecté en tête.
   Connexion en un clic aux réseaux enregistrés ou ouverts, saisie du mot de passe pour un nouveau réseau
   (WPA2 / WPA3), déconnexion, oubli d'un réseau (double confirmation).
 - **Bluetooth** : appareils appairés avec leur état. Connexion / déconnexion des casques et enceintes en un clic.
   *Ajouter un appareil* ouvre l'appairage de Windows.
+- **Point d'accès mobile** : activation / arrêt du partage de connexion de Windows, nom, mot de passe
+  (affichable, modifiable ou généré), bande (automatique, 2,4 GHz, 5 GHz), QR code pour connecter un appareil,
+  liste des appareils connectés (nom, adresse IP, adresse MAC).
+  **Bloquer** un appareil : Windows ne permet pas d'éjecter un appareil précis, l'île change donc le mot de passe
+  et redémarre le point d'accès ; les autres appareils se reconnectent avec le nouveau mot de passe (QR code).
+  Un appareil bloqué qui revient est signalé.
+- **Appareils réseau** : appareils présents sur le Wi-Fi actuel (box / routeur, cet ordinateur, autres appareils
+  avec IP, MAC et nom). Le blocage sur ce réseau se fait dans l'administration du routeur (bouton *Administrer*).
+
+> Certaines cartes Wi-Fi ne peuvent pas créer de point d'accès quand leur Wi-Fi Direct est déjà utilisé
+> (Lien avec Windows, partage de proximité, projection) : l'île affiche alors la cause.
 
 ---
 
@@ -106,6 +132,7 @@ est activé au premier lancement (désactivable par clic droit sur l'île).
 | `tab_*.py` | un fichier par onglet |
 | `system.py` | audio, luminosité, radios, Ne pas déranger, barre des tâches, fenêtres |
 | `network.py` | réseaux Wi-Fi et appareils Bluetooth |
+| `hotspot.py` | point d'accès mobile et appareils du réseau local |
 | `media.py` | média en lecture (contrôles multimédias de Windows) |
 | `agenda.py`, `timers.py`, `tasks.py`, `nlp.py` | agenda, minuteurs, tâches, saisie en français |
 | `launcher.py`, `files.py`, `clipboard.py` | lanceur, fichiers, presse-papiers |

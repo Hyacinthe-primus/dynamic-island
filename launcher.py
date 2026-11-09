@@ -227,6 +227,7 @@ class Launcher(QObject):
                 apps.append({"name": name, "target": lnk, "kind": "app", "args": ""})
         try:
             r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
                                 "Get-StartApps | ForEach-Object { $_.Name + '|' + $_.AppID }"],
                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=25,
                                creationflags=NOWIN)
