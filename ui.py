@@ -270,10 +270,12 @@ class UI:
             self.rect(r, T.hover if hov else Qt.GlobalColor.transparent, rad, color or T.track)
         self.hit(hit, fn)
 
-    def tile(self, r, g, label, active, fn, slash=False, enabled=True, color=None):
-        """Bouton bascule des paramètres rapides de Windows 11."""
+    def tile(self, r, g, label, active, fn, slash=False, enabled=True, color=None, more=None):
+        """Bouton bascule des paramètres rapides de Windows 11. Avec « more », la partie droite (chevron)
+        ouvre un panneau détaillé (choix du réseau, de l'appareil…), comme dans Windows."""
         hov = enabled and self.hovering(r)
         br = QRectF(r.left(), r.top(), r.width(), r.height() - 18)
+        mr = QRectF(br.right() - 26, br.top(), 26, br.height()) if more else None
         if active and enabled:
             c = QColor(color or T.accent)
             self.rect(br, c.lighter(108) if hov else c, R_CTRL)
@@ -281,11 +283,21 @@ class UI:
         else:
             self.rect(br, T.layer2 if hov else T.layer, R_CTRL, T.stroke)
             ic = T.text if enabled else T.disabled
-        self.glyph(br.center(), g, 15, ic, slash)
+        if mr is not None:
+            if self.hovering(mr):
+                self.rect(mr.adjusted(1, 1, -1, -1), QColor(255, 255, 255, 40) if active else T.hover, R_CTRL)
+            self.rect(QRectF(mr.left(), mr.top() + 8, 1, mr.height() - 16), T.tint(ic, 70), 0)
+            self.glyph(mr.center(), "", 10, ic)
+            gc = QPointF(br.left() + (br.width() - 26) / 2, br.center().y())
+        else:
+            gc = br.center()
+        self.glyph(gc, g, 15, ic, slash)
         self.text(QRectF(r.left() - 6, r.bottom() - 16, r.width() + 12, 16), label, font(7.5),
                   T.text if enabled else T.disabled, CENTER)
         if enabled:
             self.hit(r, fn)
+        if mr is not None:
+            self.hit(mr, more)  # enregistré après : prioritaire sur la bascule
 
     # ---------------------------------------------------------------- curseurs / barres
     def slider(self, r, value, setter, color=None, enabled=True):

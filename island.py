@@ -22,6 +22,7 @@ from clipboard import ClipboardHistory
 from devtools import Dev
 from infos import Infos
 from media import MediaWorker
+from network import Networks
 from store import Collection, settings
 from binance import Binance
 from files import Files
@@ -188,6 +189,10 @@ class Island(QWidget):
         self.launcher = Launcher()
         self.phone = Phone(self.files)
         self.wallet = Binance()
+        self.net = Networks()
+        self.net.alert.connect(lambda t, s_, ok: self.show_alert("net", t, s_, T.success if ok else T.critical,
+                                                                 G["wifi"] if "Wi-Fi" in t else G["bt"], duration=4))
+        QTimer.singleShot(4000, lambda: (self.net.scan_wifi(active=False), self.net.refresh_bt()))
         self.files.alert.connect(self.on_files_alert)
         self.launcher.output.connect(lambda t, s_: self.show_alert("launch", t, s_, T.accent, G["terminal"]))
         self.phone.alert.connect(self.on_phone_alert)
