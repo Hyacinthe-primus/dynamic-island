@@ -23,7 +23,9 @@ from store import APPDATA, settings
 
 PORT = 8765
 RECV_DIR = os.path.join(DOWNLOADS, "Téléphone")
-PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phone_page.html")
+from paths import resource  # noqa: E402
+
+PAGE = resource("phone_page.html")
 PHONE_LINK_IDS = ("yourphone", "phonelink", "phone link", "lien avec windows", "lien mobile", "liaison mobile")
 CALL_RE = re.compile(r"appel entrant|incoming call|appel de|is calling|vous appelle", re.I)
 

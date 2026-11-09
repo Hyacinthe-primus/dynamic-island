@@ -116,6 +116,27 @@ dans ce dépôt. Les clés (GitHub, Binance) y sont en clair : utilisez des clé
 
 ## Installation
 
+### Installateur Windows (recommandé)
+
+1. Téléchargez **`DynamicIsland-1.0.0-win64.msi`** depuis la page
+   [Releases](https://github.com/arielDirema/dynamic-island/releases).
+2. Double-cliquez dessus et suivez l'assistant. **Aucun droit administrateur n'est nécessaire** :
+   l'application s'installe pour votre compte dans `%LOCALAPPDATA%\Programs\Dynamic Island`.
+3. Lancez **Dynamic Island** depuis le menu Démarrer ou le raccourci du Bureau. Elle démarrera ensuite
+   automatiquement avec Windows.
+
+Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » (l'installateur n'est pas signé) :
+cliquez sur *Informations complémentaires* › *Exécuter quand même*.
+
+**Désinstaller** : Paramètres › Applications › Applications installées › *Dynamic Island* › Désinstaller.
+Quittez d'abord l'île (clic droit › Quitter) pour récupérer la barre des tâches. Vos données
+(`%APPDATA%\DynamicIsland`) sont conservées.
+
+**Version portable** : `DynamicIsland-1.0.0-portable-win64.zip` — décompressez où vous voulez et lancez
+`DynamicIsland.exe` (sans installation).
+
+### Depuis les sources
+
 Prérequis : **Windows 11** et **Python 3.12**.
 
 ```bash
@@ -128,12 +149,27 @@ python -m venv .venv
 Lancer : double-clic sur `start.bat` (il démarre le gardien, qui démarre l'île). Le démarrage avec Windows
 est activé au premier lancement (désactivable par clic droit sur l'île).
 
+### Construire l'installateur
+
+```bash
+.venv\Scripts\python -m pip install cx_Freeze pillow
+.venv\Scripts\python tools\make_icon.py
+.venv\Scripts\python setup_msi.py bdist_msi
+```
+
+Résultat : `dist\DynamicIsland-<version>-win64.msi` (et l'application seule dans `build\`).
+`DynamicIsland.exe --selftest` vérifie chaque composant et écrit un rapport dans
+`%TEMP%\DynamicIsland-selftest.txt`.
+
 ## Structure du code
 
 | Fichier | Rôle |
 |---|---|
 | `island.py` | fenêtre, animation, pilule, notifications, saisie, menu, démarrage |
-| `island_watchdog.pyw` | gardien : relance l'île en cas de plantage |
+| `dynamic_island.py` | point d'entrée de l'application installée (gardien, île, auto-test) |
+| `watchdog.py`, `island_watchdog.pyw` | gardien : relance l'île en cas de plantage |
+| `paths.py` | emplacements des fichiers (sources ou application installée) |
+| `setup_msi.py`, `tools/make_icon.py`, `assets/` | construction de l'installateur, icône |
 | `ui.py`, `theme.py`, `icons.py` | composants Windows 11 dessinés, thème, icônes vectorielles |
 | `tab_*.py` | un fichier par onglet |
 | `system.py` | audio, luminosité, radios, Ne pas déranger, barre des tâches, fenêtres |

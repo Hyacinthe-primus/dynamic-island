@@ -1485,6 +1485,9 @@ class Island(QWidget):
 
 # ================================================================== démarrage auto
 def autostart_command():
+    from paths import frozen
+    if frozen():  # application installée : l'exe démarre le gardien par défaut
+        return f'"{os.path.abspath(sys.executable)}"'
     pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     if not os.path.exists(pyw):
         pyw = sys.executable
@@ -1523,7 +1526,11 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     island = Island()
 
-    tray = QSystemTrayIcon(make_tray_icon(), app)
+    from paths import resource
+    ico_path = resource("assets", "island.ico")
+    app_icon = QIcon(ico_path) if os.path.exists(ico_path) else make_tray_icon()
+    app.setWindowIcon(app_icon)
+    tray = QSystemTrayIcon(app_icon, app)
     tray.setToolTip("Dynamic Island")
     island.tray = tray
     menu = QMenu()

@@ -14,3 +14,8 @@ settings.json
 .idea/
 Thumbs.db
 desktop.ini
+
+# Construction (cx_Freeze)
+build/
+dist/
+*.egg-info/
