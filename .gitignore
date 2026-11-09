@@ -1,0 +1,16 @@
+# Environnement Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Données locales (elles vivent dans %APPDATA%\DynamicIsland, jamais dans le dépôt)
+settings.json
+*.pem
+*.log
+
+# Système / éditeurs
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
