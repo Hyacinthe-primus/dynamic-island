@@ -1,10 +1,10 @@
-"""Analyse des saisies rapides en français."""
+"""Quick-entry parsing in English and French."""
 import datetime as dt
 
 from dynamic_island.engines import nlp
 
 
-NOW = dt.datetime(2026, 11, 12, 10, 0)  # jeudi
+NOW = dt.datetime(2026, 11, 12, 10, 0)  # Thursday
 
 
 def test_relative_date_and_time():

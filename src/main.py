@@ -1,4 +1,4 @@
-"""Lanceur source : `python src/main.py` (gardien, île ou auto-test)."""
+"""Source entry point: `python src/main.py` (watchdog, island or self-test)."""
 from dynamic_island.main import main
 
 if __name__ == "__main__":

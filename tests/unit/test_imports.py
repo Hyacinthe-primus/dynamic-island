@@ -1,4 +1,4 @@
-"""Import du paquet, compilation de tous les modules et absence d'anciens imports plats."""
+"""Package imports, compilation of every module and absence of legacy flat imports."""
 import ast
 import subprocess
 import sys
@@ -16,7 +16,7 @@ LEGACY = {
     "tab_controls", "tab_dev", "tab_files", "tab_home", "tab_infos", "tab_launcher",
     "tab_phone", "tab_tasks", "tab_timers", "tab_wallet",
 }
-# Modules dont l'import exige winrt (API Windows) dans l'environnement de test.
+# Modules whose import requires winrt (Windows APIs) in the test environment.
 WINRT_MODULES = {"dynamic_island.app", "dynamic_island.engines.media", "dynamic_island.ui.windows.island"}
 
 
@@ -89,7 +89,7 @@ def test_tab_warmup_uses_registry_instead_of_dynamic_import():
 
 
 def test_application_shell_imports_with_winrt_stub():
-    """Vérifie le graphe complet fenêtre/app sans installer les paquets winrt."""
+    """Verify the complete window/app graph without installing the winrt packages."""
     code = textwrap.dedent(
         f"""
         import sys, types

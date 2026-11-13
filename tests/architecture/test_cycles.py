@@ -1,4 +1,4 @@
-"""Le graphe d'imports du paquet ne doit contenir aucun cycle."""
+"""The package import graph must not contain cycles."""
 import ast
 from pathlib import Path
 

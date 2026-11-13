@@ -49,7 +49,7 @@ build_exe_options = {
 bdist_msi_options = {
     "upgrade_code": UPGRADE_CODE,
     "add_to_path": False,
-    "all_users": False,                                         # installation par utilisateur, sans UAC
+    "all_users": False,                                         # per-user installation, no UAC
     "initial_target_dir": r"[LocalAppDataFolder]Programs\Dynamic Island",
     "install_icon": "assets/island.ico",
     "product_code": None,
@@ -83,7 +83,7 @@ setup(
     executables=[
         Executable(
             "src/main.py",
-            base="gui" if sys.platform == "win32" else None,     # pas de console
+            base="gui" if sys.platform == "win32" else None,     # no console
             target_name="DynamicIsland.exe",
             icon="assets/island.ico",
             shortcut_name="Dynamic Island",

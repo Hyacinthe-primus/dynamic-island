@@ -1,4 +1,4 @@
-"""Frontières de couches : core → stdlib, modèles, moteurs, services, interface."""
+"""Layer boundaries: core → stdlib, models, engines, services, UI."""
 import ast
 import sys
 from pathlib import Path

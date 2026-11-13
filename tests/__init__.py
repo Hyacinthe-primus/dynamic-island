@@ -1,4 +1,4 @@
-"""Tests de la Dynamic Island : la racine du paquet est ajoutée à sys.path."""
+"""Dynamic Island tests: the package root is added to sys.path."""
 import sys
 from pathlib import Path
 

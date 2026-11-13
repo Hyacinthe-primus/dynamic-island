@@ -1,4 +1,4 @@
-"""Emplacements des ressources, mode source et mode installé."""
+"""Resource locations, source mode and installed mode."""
 import sys
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""Garantit que le paquet `src/dynamic_island` est prioritaire sur le lanceur racine."""
+"""Ensure the `src/dynamic_island` package takes precedence over the root launcher."""
 import sys
 from pathlib import Path
 

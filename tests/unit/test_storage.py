@@ -1,4 +1,4 @@
-"""Stockage JSON et synchronisation « le plus récent gagne »."""
+"""JSON storage and newest-wins synchronization."""
 import json
 
 import pytest
@@ -9,7 +9,7 @@ from dynamic_island.infrastructure.storage.collection import Collection
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    """Isole les collections dans un dossier de synchronisation temporaire."""
+    """Isolate collections in a temporary synchronization folder."""
     monkeypatch.setitem(settings, "sync_dir", str(tmp_path))
     monkeypatch.setattr(Collection, "_all", [])
     return tmp_path / "DynamicIsland"
