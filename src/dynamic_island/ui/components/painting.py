@@ -111,8 +111,7 @@ class IslandPainting:
             if old_exp:
                 pm, tw, th = self.content_pixmap(self.prev_mode)
                 skip = TAB_H if both else 0
-                p.drawPixmap(QRectF(cx - tw / 2, r.top() + skip, tw, th - skip), pm,
-                             QRectF(0, skip, tw, th - skip))
+                self._blit_content(p, pm, cx, r.top(), tw, th, skip)
             else:
                 self.paint_mode(ui, self.prev_mode, r)
             p.restore()
@@ -132,7 +131,7 @@ class IslandPainting:
                 self._reg = False
                 pm, tw, th = self.content_pixmap(self.mode)
                 skip = TAB_H if both else 0
-                p.drawPixmap(QRectF(cx - tw / 2, r.top() + skip, tw, th - skip), pm, QRectF(0, skip, tw, th - skip))
+                self._blit_content(p, pm, cx, r.top(), tw, th, skip)
             else:
                 self._reg = a_new > 0.6
                 if new_exp and not both:
@@ -190,6 +189,20 @@ class IslandPainting:
         self.ui.p, self._reg = main_p, reg
         self._cc[mode] = (key, pm, time.time())
         return pm, tw, th
+
+    @staticmethod
+    def _blit_content(p, pm, cx, top, tw, th, skip=0):
+        """Draw cached content using device-pixel source coordinates.
+
+        QPainter.drawPixmap does not apply QPixmap.devicePixelRatio to its
+        source rectangle, so logical units magnify the frame on scaled displays.
+        """
+        dpr = pm.devicePixelRatio()
+        p.drawPixmap(
+            QRectF(cx - tw / 2, top + skip, tw, th - skip),
+            pm,
+            QRectF(0, skip * dpr, tw * dpr, (th - skip) * dpr),
+        )
 
     @property
     def dock_enabled(self):
