@@ -113,9 +113,13 @@ opens the Start menu. To restore it, right-click the island and clear *Hide the 
 
 ## Data and privacy
 
-Everything is stored locally in `%APPDATA%\DynamicIsland` (or in the selected synchronization folder):
-settings, API keys, clipboard history and the phone server certificate. None of this is stored in this
-repository. GitHub and Binance keys are stored in plain text; use keys with restricted permissions.
+Settings and API keys are written immediately to `%APPDATA%\DynamicIsland\settings.json`, so they
+survive restarts and reboots. The previous good copy is kept as `settings.json.bak`; a file that
+cannot be read is preserved as `settings.json.corrupt` instead of being overwritten. Synchronized
+collections (tasks, notes, agenda, clipboard) live in the selected cloud folder; credentials are
+never synchronized and stay local to the Windows account. The phone server certificate is also in
+`%APPDATA%\DynamicIsland`. None of this is stored in this repository. GitHub, Binance and Jenkins
+credentials are stored in plain text; use keys with restricted permissions.
 
 ---
 
