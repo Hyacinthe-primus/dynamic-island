@@ -192,6 +192,10 @@ Results: `dist\DynamicIsland-<version>-win64.msi` and the standalone application
 `DynamicIsland.exe --selftest` verifies every component and writes its report to
 `%TEMP%\DynamicIsland-selftest.txt`.
 
+The **Build MSI** GitHub Actions workflow runs on pushes, pull requests and manual dispatches.
+Every run uploads the installer as a workflow artifact. Pushing a `v*` tag also creates or updates
+the matching GitHub release and attaches the MSI to it.
+
 ## Language support
 
 English is the canonical source language and the fallback locale. French is included as a complete
