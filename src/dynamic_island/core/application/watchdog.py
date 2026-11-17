@@ -77,7 +77,9 @@ def main():
         if len(crashes) >= 5:
             log("too many crashes, giving up")
             break
-        time.sleep(2)
+        # an isolated crash is restarted almost at once (no island and no taskbar meanwhile);
+        # repeated crashes within a minute back off
+        time.sleep(0.5 if len(crashes) == 1 else 2)
     restore_taskbar()
 
 

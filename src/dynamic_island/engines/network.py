@@ -1,6 +1,5 @@
 """Wi-Fi and Bluetooth panels: visible networks (connect, password, disconnect, forget)
 and paired Bluetooth devices (state, connect/disconnect for headsets and speakers)."""
-import asyncio
 import ctypes
 import os
 import re
@@ -9,7 +8,6 @@ import tempfile
 import threading
 import time
 from ctypes import wintypes
-from xml.sax.saxutils import escape
 
 from PySide6.QtCore import QObject, Signal
 
@@ -111,6 +109,7 @@ def wifi_networks():
 
 
 def _profile_xml(ssid, password, wpa3=False):
+    from xml.sax.saxutils import escape
     s = escape(ssid)
     if password is None:
         sec = "<authEncryption><authentication>open</authentication><encryption>none</encryption>" \
@@ -290,6 +289,7 @@ class Networks(QObject):
         threading.Thread(target=work, daemon=True).start()
 
     def refresh_bt(self):
+        import asyncio
         if self.bt_loading:
             return
 
@@ -346,6 +346,7 @@ class Networks(QObject):
             return False
 
     def bt_toggle(self, dev):
+        import asyncio
         connect = not dev["connected"]
 
         def work():

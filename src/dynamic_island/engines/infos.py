@@ -7,7 +7,6 @@ import random
 import threading
 import time
 import urllib.parse
-import urllib.request
 import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
@@ -22,6 +21,7 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DynamicIsland/1.0
 
 
 def get_json(url, timeout=12):
+    import urllib.request
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
@@ -198,6 +198,7 @@ class Infos(QObject):
             self.stocks = out
 
     def _fetch_news(self):
+        import urllib.request
         items = []
         for url in self.feeds[:5]:
             try:

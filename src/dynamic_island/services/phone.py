@@ -2,7 +2,6 @@
 - local HTTPS server (Wi-Fi only, secret token) + companion web page opened by QR code:
   file transfer PC ⇄ phone, text/clipboard sending, remote control, phone battery;
 - phone notifications and calls read from Phone Link."""
-import asyncio
 import datetime as dt
 import html
 import json
@@ -10,12 +9,10 @@ import os
 import re
 import secrets
 import socket
-import ssl
 import subprocess
 import threading
 import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from PySide6.QtCore import QObject, Signal
 
@@ -159,6 +156,8 @@ class Phone(QObject):
         return f"https://{self.ip}:{PORT}/?t={self.token}"
 
     def start(self):
+        import ssl
+        from http.server import ThreadingHTTPServer
         if self.server:
             return True
         self.ip = lan_ip()
@@ -224,6 +223,7 @@ class Phone(QObject):
         return bool(self.device and time.time() - self.device["seen"] < 60)
 
     def _handler(self):
+        from http.server import BaseHTTPRequestHandler
         phone = self
 
         class H(BaseHTTPRequestHandler):
@@ -330,9 +330,11 @@ class Phone(QObject):
         return H
 
     def _notif_thread(self):
+        import asyncio
         asyncio.run(self._notif_loop())
 
     async def _notif_loop(self):
+        import asyncio
         try:
             from winrt.windows.ui.notifications import KnownNotificationBindings, NotificationKinds
             from winrt.windows.ui.notifications.management import UserNotificationListener

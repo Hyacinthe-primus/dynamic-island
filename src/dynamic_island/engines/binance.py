@@ -5,9 +5,6 @@ import hmac
 import json
 import threading
 import time
-import urllib.parse
-import urllib.error
-import urllib.request
 
 from PySide6.QtCore import QObject, Signal
 
@@ -82,11 +79,14 @@ class Binance(QObject):
         self._wake.set()
 
     def _public(self, path, params=None):
+        import urllib.request
         url = API + path + ("?" + urllib.parse.urlencode(params) if params else "")
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "DynamicIsland"}), timeout=15) as r:
             return json.loads(r.read().decode())
 
     def _signed(self, method, path, params=None):
+        import urllib.error
+        import urllib.request
         key, secret = self._credentials()
         p = dict(params or {})
         p["timestamp"] = int(time.time() * 1000 + self._offset)

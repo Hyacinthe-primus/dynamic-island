@@ -4,7 +4,6 @@ import datetime as dt
 import re
 import threading
 import time
-import urllib.request
 
 from PySide6.QtCore import QObject, Signal
 
@@ -88,6 +87,7 @@ class Agenda(QObject):
             self._wake.clear()
 
     def _fetch_all(self):
+        import urllib.request
         import icalendar
         import recurring_ical_events
         occ = []

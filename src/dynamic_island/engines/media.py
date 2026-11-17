@@ -1,12 +1,9 @@
-"""Windows media playback (Spotify, browser, player…) through the SMTC API."""
-import asyncio
+"""Windows media playback (Spotify, browser, player…) through the SMTC API.
+
+winrt modules are imported inside the worker: loading them costs ~70 ms that the
+island would otherwise pay before its first frame."""
 
 from PySide6.QtCore import QThread, Signal
-from winrt.windows.media.control import (
-    GlobalSystemMediaTransportControlsSessionManager as MediaManager,
-    GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
-)
-from winrt.windows.storage.streams import Buffer, InputStreamOptions
 
 from dynamic_island.core.localization import translate as tr
 
@@ -49,6 +46,7 @@ class MediaWorker(QThread):
         self._thumb_tries = 0
 
     def run(self):
+        import asyncio
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self._main())
@@ -58,6 +56,7 @@ class MediaWorker(QThread):
         self.wait(2000)
 
     async def _main(self):
+        import asyncio
         while self._running:
             try:
                 info = await self._poll()
@@ -68,6 +67,7 @@ class MediaWorker(QThread):
             await asyncio.sleep(0.5)
 
     async def _read_thumb(self, props):
+        from winrt.windows.storage.streams import Buffer, InputStreamOptions
         if props.thumbnail is None:
             return None
         stream = await props.thumbnail.open_read_async()
@@ -79,6 +79,10 @@ class MediaWorker(QThread):
         return data or None
 
     async def _poll(self):
+        from winrt.windows.media.control import (
+            GlobalSystemMediaTransportControlsSessionManager as MediaManager,
+            GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
+        )
         if self.manager is None:
             self.manager = await MediaManager.request_async()
         s = self.manager.get_current_session()
@@ -127,6 +131,11 @@ class MediaWorker(QThread):
 
     def command(self, name: str, arg=None):
         """name: 'play_pause' | 'next' | 'previous' | 'seek' (arg = secondes)"""
+        import asyncio
+
+        from winrt.windows.media.control import (
+            GlobalSystemMediaTransportControlsSessionManager as MediaManager,
+        )
         if self.loop is None:
             return
         method = {

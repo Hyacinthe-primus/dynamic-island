@@ -8,19 +8,6 @@ from datetime import date, datetime, time
 from string import Formatter
 from typing import Any
 
-from babel import Locale
-from babel.dates import (
-    format_date as babel_format_date,
-    format_datetime as babel_format_datetime,
-    format_time as babel_format_time,
-    get_day_names,
-)
-from babel.numbers import (
-    format_currency as babel_format_currency,
-    format_decimal,
-    format_percent as babel_format_percent,
-)
-
 PLURAL_CATEGORIES = frozenset({"zero", "one", "two", "few", "many", "other"})
 _LOCALE_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z]{2})?$")
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)(?:![rsa])?(?::[^}]*)?\}")
@@ -118,6 +105,8 @@ def placeholders(template: str) -> set[str]:
 
 
 def _plural_text(value: dict[str, str], language: str, count: Any) -> str:
+    from babel import Locale
+
     try:
         category = Locale.parse(language).plural_form(count)
     except (ValueError, TypeError):
@@ -167,38 +156,56 @@ def resolve_message(
 
 
 def format_number(value: float | int, language: str, **kwargs: Any) -> str:
+    from babel.numbers import format_decimal
+
     return format_decimal(value, locale=language, **kwargs)
 
 
 def format_currency(value: float | int, currency: str, language: str) -> str:
+    from babel.numbers import format_currency as babel_format_currency
+
     return babel_format_currency(value, currency, locale=language)
 
 
 def format_percent(value: float | int, language: str) -> str:
+    from babel.numbers import format_percent as babel_format_percent
+
     return babel_format_percent(value, locale=language)
 
 
 def format_date(value: date | datetime, language: str, format: str = "medium") -> str:
+    from babel.dates import format_date as babel_format_date
+
     return babel_format_date(value, format=format, locale=language)
 
 
 def format_time(value: time | datetime, language: str, format: str = "short") -> str:
+    from babel.dates import format_time as babel_format_time
+
     return babel_format_time(value, format=format, locale=language)
 
 
 def format_datetime(value: datetime, language: str, format: str = "medium") -> str:
+    from babel.dates import format_datetime as babel_format_datetime
+
     return babel_format_datetime(value, format=format, locale=language)
 
 
 def format_day_name(value: date | datetime, language: str, width: str = "wide") -> str:
+    from babel.dates import format_date as babel_format_date
+
     return babel_format_date(value, format="EEEE" if width == "wide" else "EEE", locale=language)
 
 
 def format_month_name(value: date | datetime, language: str, width: str = "wide") -> str:
+    from babel.dates import format_date as babel_format_date
+
     return babel_format_date(value, format="MMMM" if width == "wide" else "MMM", locale=language)
 
 
 def weekday_names(language: str, width: str = "short") -> list[str]:
     """Return Monday-to-Sunday weekday names for a locale."""
+    from babel.dates import get_day_names
+
     names = get_day_names(width=width, locale=language)
     return [names[index] for index in range(7)]
