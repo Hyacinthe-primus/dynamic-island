@@ -25,7 +25,7 @@ build_exe_options = {
         "recurring_ical_events", "qrcode", "cryptography", "tzdata", "psutil", "win32com",
         "pythoncom", "pywintypes", "zoneinfo", "xml", "sqlite3", "asyncio", "ctypes", "babel",
     ],
-    "includes": [],
+    "includes": ["win32crypt"],  # lazy imports (DPAPI credentials)
     "excludes": [
         "tkinter", "unittest", "pydoc_data", "test", "distutils", "setuptools", "pip",
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick", "PySide6.QtWebView",

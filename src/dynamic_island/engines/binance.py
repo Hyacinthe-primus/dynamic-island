@@ -11,6 +11,7 @@ import urllib.request
 
 from PySide6.QtCore import QObject, Signal
 
+from dynamic_island.infrastructure import credentials
 from dynamic_island.core.config.settings import settings
 
 API = "https://api.binance.com"
@@ -33,24 +34,40 @@ class Binance(QObject):
         self.visible = False
         self._offset = 0
         self._wake = threading.Event()
+        self._encrypt_stored_keys()
         threading.Thread(target=self._loop, daemon=True).start()
+
+    @staticmethod
+    def _credentials():
+        """(api key, secret) in clear text; stored encrypted with DPAPI in settings.json."""
+        c = settings.get("binance", {})
+        return credentials.reveal(c.get("key", "")), credentials.reveal(c.get("secret", ""))
+
+    @staticmethod
+    def _encrypt_stored_keys():
+        """Migrate keys saved in plain text by earlier versions."""
+        c = dict(settings.get("binance", {}))
+        legacy = {k: c[k] for k in ("key", "secret") if c.get(k) and not credentials.is_protected(c[k])}
+        if legacy:
+            c.update({k: credentials.protect(v) for k, v in legacy.items()})
+            settings.set("binance", c)
 
     @property
     def configured(self):
-        c = settings.get("binance", {})
-        return bool(c.get("key") and c.get("secret"))
+        key, secret = self._credentials()
+        return bool(key and secret)
+
+    def _store(self, field, value):
+        c = dict(settings.get("binance", {}))
+        c[field] = credentials.protect(value.strip())
+        settings.set("binance", c)
+        self.refresh()
 
     def set_key(self, key):
-        c = dict(settings.get("binance", {}))
-        c["key"] = key.strip()
-        settings.set("binance", c)
-        self.refresh()
+        self._store("key", key)
 
     def set_secret(self, secret):
-        c = dict(settings.get("binance", {}))
-        c["secret"] = secret.strip()
-        settings.set("binance", c)
-        self.refresh()
+        self._store("secret", secret)
 
     def forget(self):
         settings.set("binance", {})
@@ -70,14 +87,14 @@ class Binance(QObject):
             return json.loads(r.read().decode())
 
     def _signed(self, method, path, params=None):
-        c = settings.get("binance", {})
+        key, secret = self._credentials()
         p = dict(params or {})
         p["timestamp"] = int(time.time() * 1000 + self._offset)
         p["recvWindow"] = 10000
         qs = urllib.parse.urlencode(p)
-        sig = hmac.new(c["secret"].encode(), qs.encode(), hashlib.sha256).hexdigest()
+        sig = hmac.new(secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
         url = f"{API}{path}?{qs}&signature={sig}"
-        req = urllib.request.Request(url, method=method, headers={"X-MBX-APIKEY": c["key"], "User-Agent": "DynamicIsland"})
+        req = urllib.request.Request(url, method=method, headers={"X-MBX-APIKEY": key, "User-Agent": "DynamicIsland"})
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 return json.loads(r.read().decode())
