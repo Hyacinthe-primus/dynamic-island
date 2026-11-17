@@ -127,7 +127,7 @@ credentials are stored in plain text; use keys with restricted permissions.
 
 ### Windows installer (recommended)
 
-1. Download **`DynamicIsland-1.1.0-win64.msi`** from the
+1. Download **`DynamicIsland-1.2.0-win64.msi`** from the
    [Releases](https://github.com/arielDirema/dynamic-island/releases) page.
 2. Run it and follow the wizard. **Administrator rights are not required**: the application installs
    for the current user in `%LOCALAPPDATA%\Programs\Dynamic Island`.
