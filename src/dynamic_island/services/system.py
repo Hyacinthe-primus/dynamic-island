@@ -1,6 +1,5 @@
 """Windows system controls: audio, brightness, radios, night light,
 Do Not Disturb, camera, microphone, keyboard and power."""
-import asyncio
 import ctypes
 import threading
 import time
@@ -19,12 +18,18 @@ class Audio:
     """Master volume, per-application volume, audio outputs and microphone (pycaw)."""
 
     def __init__(self):
-        from pycaw.pycaw import AudioUtilities
-        self.AU = AudioUtilities
+        # Not connected yet: every method falls back to a neutral value until load().
+        self.AU = None
         self._ep = None
         self._mic = None
         self.device_id = None
         self.device_name = ""
+
+    def load(self):
+        """Connect to the Windows audio endpoints (pycaw/COM import and setup take ~150 ms,
+        so the island calls this once it is already on screen). Main thread only."""
+        from pycaw.pycaw import AudioUtilities
+        self.AU = AudioUtilities
         self.refresh()
 
     def refresh(self):
@@ -202,6 +207,7 @@ class RadioWorker(QThread):
         self._saved = None  # states before airplane mode
 
     def run(self):
+        import asyncio
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self._main())
@@ -211,6 +217,7 @@ class RadioWorker(QThread):
         self.wait(2500)
 
     async def _main(self):
+        import asyncio
         from winrt.windows.devices.radios import Radio, RadioKind
         try:
             await Radio.request_access_async()
@@ -241,6 +248,7 @@ class RadioWorker(QThread):
         return out
 
     def _submit(self, coro):
+        import asyncio
         if self.loop is not None:
             asyncio.run_coroutine_threadsafe(coro, self.loop)
 

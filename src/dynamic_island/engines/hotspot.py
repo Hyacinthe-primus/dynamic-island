@@ -6,7 +6,6 @@
   with the new password (shown as a QR code). If it comes back anyway, it is reported.
 - Local network: devices on the current Wi-Fi (IP, MAC, name). Read-only: blocking on a
   network where this PC is only a client is done in the router administration."""
-import asyncio
 import ipaddress
 import re
 import secrets
@@ -134,6 +133,7 @@ class Hotspot(QObject):
         self._wake.set()
 
     def _async(self, coro_fn, done_msg=None):
+        import asyncio
         def work():
             self.busy = True
             self.changed.emit()
@@ -173,6 +173,7 @@ class Hotspot(QObject):
 
     def configure(self, ssid=None, password=None, band=None, restart=None):
         """Change name, password or band (8 characters minimum); restart if the hotspot was on."""
+        import asyncio
         async def run():
             m = self._manager()
             cfg = m.get_current_access_point_configuration()

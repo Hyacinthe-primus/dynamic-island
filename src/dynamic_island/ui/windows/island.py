@@ -117,15 +117,14 @@ class Island(IslandInput, IslandAlerts, IslandSystem, IslandPainting, QWidget):
         self.dnd = system.DoNotDisturb()
         self.radio = system.RadioWorker()
         self.radio.updated.connect(self.on_radios)
-        self.radio.start()
         self.wifi = self.bt = None
         self.night = system.night_light_on()
         self.night_ok = system.night_light_supported()
         self.cam_allowed = system.camera_allowed()
         self.cam_busy = self.mic_busy = False
         self.caps, self.num = system.caps_lock(), system.num_lock()
-        self.vol, self.muted = self.audio.volume(), self.audio.muted()
-        self.out_id = self.audio.default_id()
+        self.vol, self.muted = 0.0, False  # real values once audio is loaded (_finish_startup)
+        self.out_id = None
         psutil.cpu_percent(None)
         self.battery = None
         self.plugged = None
@@ -173,8 +172,6 @@ class Island(IslandInput, IslandAlerts, IslandSystem, IslandPainting, QWidget):
         self.tab_x = 0.0
         self._language_unsubscribe = on_language_changed(self._language_changed)
 
-        self.update_stats()
-
         self.anim = QTimer(self)
         self.anim.setTimerType(Qt.TimerType.PreciseTimer)
         self.anim.timeout.connect(self.tick)
@@ -192,9 +189,29 @@ class Island(IslandInput, IslandAlerts, IslandSystem, IslandPainting, QWidget):
 
         self.worker = MediaWorker()
         self.worker.updated.connect(self.on_media)
-        self.worker.start()
+        self._started = False
+        QTimer.singleShot(1000, self._finish_startup)  # fallback if the first frame is never painted
         user32.RegisterHotKey(self.hwnd, HOTKEY_ID, 0x0002 | 0x0001 | 0x4000, 0x56)  # Ctrl+Alt+V
         user32.RegisterHotKey(self.hwnd, HOTKEY_LAUNCH, 0x0002 | 0x0001 | 0x4000, 0x20)  # Ctrl+Alt+Space
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if not self._started:
+            QTimer.singleShot(0, self._finish_startup)
+
+    def _finish_startup(self):
+        """Second startup phase, run right after the first frame is on screen: the slow
+        Windows connections (audio endpoints, media session, radios, system state)."""
+        if self._started:
+            return
+        self._started = True
+        self.audio.load()
+        self.vol, self.muted = self.audio.volume(), self.audio.muted()
+        self.out_id = self.audio.default_id()
+        self.update_stats()
+        self.worker.start()
+        self.radio.start()
+        self.update()
 
     def _language_changed(self, _language):
         """Refresh translated labels and discard cached translated pixmaps."""

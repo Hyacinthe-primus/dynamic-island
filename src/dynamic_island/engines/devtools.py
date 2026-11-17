@@ -10,7 +10,6 @@ import subprocess
 import threading
 import time
 import urllib.parse
-import urllib.request
 import xml.etree.ElementTree as ET
 from ctypes import wintypes
 
@@ -337,6 +336,7 @@ class Dev(QObject):
                     "commits": commits, "repo": repo, "remote": url, "files": files[:30]}
 
     def _gh(self, path):
+        import urllib.request
         tok = settings.get("github_token")
         h = {"Accept": "application/vnd.github+json", "User-Agent": "DynamicIsland",
              "X-GitHub-Api-Version": "2022-11-28"}
@@ -392,6 +392,7 @@ class Dev(QObject):
         self.gh_err = None
 
     def _fetch_jenkins(self):
+        import urllib.request
         cfg = settings.get("jenkins", {})
         url = cfg["url"] + "/api/json?tree=jobs[name,color,url,lastBuild[number,result,building,timestamp,duration]]"
         h = {"User-Agent": "DynamicIsland"}

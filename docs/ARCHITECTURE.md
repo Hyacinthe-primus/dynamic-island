@@ -113,6 +113,21 @@ categories (`one`, `other`, and additional categories where the language require
   use `python src\main.py`, `start.bat`, the installed application, or set `src` first on
   `sys.path`. This is the only known import-name compatibility limitation.
 
+## Startup
+
+The island starts in two phases so it appears on screen as early as possible:
+
+1. Imports and `Island.__init__` build the window, the engines and the tabs, then the first frame is painted.
+2. `Island._finish_startup` runs right after that first frame: it connects the audio endpoints
+   (`Audio.load()`, pycaw/COM), reads the system state and starts the media and radio workers.
+
+Modules imported before the first frame keep heavy dependencies (`asyncio`, `winrt`, `urllib.request`,
+`http.server`, `babel.dates`/`babel.numbers`, `pycaw`) inside the functions that use them.
+`tests/unit/test_startup.py` fails if one of them is imported at module level again.
+
+After a crash, the watchdog restarts the island after 0.5 s, then backs off to 2 s if crashes repeat
+within a minute.
+
 ## Packaging and verification
 
 `setup_msi.py` builds `DynamicIsland.exe` from `src/main.py` and includes `dynamic_island`,

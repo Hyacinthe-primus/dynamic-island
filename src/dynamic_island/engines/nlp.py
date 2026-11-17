@@ -2,9 +2,8 @@
 “Meeting tomorrow 2:30 pm”, “Call Paul Monday !high #work”,
 “Marie's birthday 03/12”, “Dentist on the 5th at 9am for 30 min”."""
 import datetime as dt
+import functools
 import re
-
-from babel.dates import get_day_names, get_month_names
 
 PRIORITY_TOKENS = {
     "!high": 3, "!urgent": 3, "!haute": 3, "!élevée": 3, "!elevee": 3, "!!!": 3,
@@ -14,23 +13,25 @@ PRIORITY_TOKENS = {
 BIRTHDAY_RE = re.compile(r"\b(anniv(ersaire)?|birthday|geburtstag)\b", re.I)
 
 
-def _day_names(locale: str) -> list[str]:
-    names = get_day_names("wide", locale=locale)
-    return [names[index] for index in range(7)]
+@functools.cache
+def _calendar_names():
+    """(days, months, day pattern, month pattern) in English and French.
 
+    Built on first use: Babel's calendar data is slow to load and not needed at startup."""
+    from babel.dates import get_day_names, get_month_names
 
-DAYS = {name.lower(): index for locale in ("en", "fr") for index, name in enumerate(_day_names(locale))}
-MONTHS = {
-    get_month_names("wide", locale=locale)[month].lower(): month
-    for locale in ("en", "fr")
-    for month in range(1, 13)
-}
-DAY_PATTERN = "|".join(sorted((re.escape(name) for name in DAYS), key=len, reverse=True))
-MONTH_PATTERN = "|".join(sorted((re.escape(name) for name in MONTHS), key=len, reverse=True))
+    days = {get_day_names("wide", locale=locale)[index].lower(): index
+            for locale in ("en", "fr") for index in range(7)}
+    months = {get_month_names("wide", locale=locale)[month].lower(): month
+              for locale in ("en", "fr") for month in range(1, 13)}
+    day_pattern = "|".join(sorted((re.escape(name) for name in days), key=len, reverse=True))
+    month_pattern = "|".join(sorted((re.escape(name) for name in months), key=len, reverse=True))
+    return days, months, day_pattern, month_pattern
 
 
 def parse(text, now=None):
     """Return dict(title, date, time, duration, priority, project, birthday)."""
+    DAYS, MONTHS, DAY_PATTERN, MONTH_PATTERN = _calendar_names()
     now = now or dt.datetime.now()
     text = " " + text.strip() + " "
     out = {"date": None, "time": None, "duration": None, "priority": 0, "project": None, "birthday": False}
