@@ -249,7 +249,7 @@ src/
     ├── engines/                     agenda, timers, tasks, files, media, network…
     ├── services/                    phone server and system controls
     └── ui/
-        ├── windows/                 island window and layout constants
+        ├── windows/                 island window (animation, alerts, input, system tasks) and layout
         ├── components/              drawing, island painting and tray menu
         ├── tabs/                    one module per tab plus an explicit registry
         ├── themes/                  Windows 11 theme
